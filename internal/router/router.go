@@ -35,6 +35,7 @@ func SetupRouter() *gin.Engine {
     config.AllowOrigins = []string{
         "http://localhost:5173", 
         "https://lbltxmh1-5173.asse.devtunnels.ms",
+        "https://ecommerce-fe-4ezt.onrender.com",
     } 
     config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
     config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization", "Accept", "X-Requested-With"}
