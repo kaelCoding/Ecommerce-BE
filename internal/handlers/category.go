@@ -9,7 +9,6 @@ import (
 	"github.com/kaelCoding/toyBE/internal/database"
 )
 
-//Similar functions for Category (AddCategory, GetCategoryByID, UpdateCategory, DeleteCategory)
 func AddCategory(c *gin.Context) {
     var category models.Category
     if err := c.ShouldBindJSON(&category); err != nil {
