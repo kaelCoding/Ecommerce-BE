@@ -34,10 +34,10 @@ func SetupRouter() *gin.Engine {
     config := cors.DefaultConfig()
     config.AllowOrigins = []string{
         "http://localhost:5173", 
-        "https://lbltxmh1-5173.asse.devtunnels.ms",
-        "https://ecommerce-fe-4ezt.onrender.com",
         "https://kaelcoding.github.io/Ecommerce-FE",
-        "https://ecommerce-fe-bice.vercel.app",
+        "https://ecommerce-fe-nu.vercel.app",
+        "https://ecommerce-fe-git-main-kaels-projects-7e91b725.vercel.app",
+        "https://ecommerce-au20xy41z-kaels-projects-7e91b725.vercel.app",
     } 
     config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
     config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization", "Accept", "X-Requested-With"}

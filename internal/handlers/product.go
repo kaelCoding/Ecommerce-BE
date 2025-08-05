@@ -54,7 +54,7 @@ func AddProduct(c *gin.Context) {
         }
 
         // fileURL := fmt.Sprintf("https://ecommerce-be-w27g.onrender.com/uploads/%s", uniqueFileName)
-        fileURL := fmt.Sprintf("https://ecommerce-be-zixc.onrender.com/uploads/%s", uniqueFileName)
+        fileURL := fmt.Sprintf("https://ecommerce-be-production-856c.up.railway.app/uploads/%s", uniqueFileName)
         
         imageURLs = append(imageURLs, fileURL)
     }
@@ -189,7 +189,7 @@ func UpdateProduct(c *gin.Context) {
                     c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to save file"})
                     return
                 }
-                fileURL := fmt.Sprintf("https://ecommerce-be-zixc.onrender.com/uploads/%s", uniqueFileName)
+                fileURL := fmt.Sprintf("https://ecommerce-be-production-856c.up.railway.app/uploads/%s", uniqueFileName)
                 newImageURLs = append(newImageURLs, fileURL)
             }
             
