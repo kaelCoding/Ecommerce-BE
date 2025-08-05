@@ -38,16 +38,12 @@ func SetupRouter() *gin.Engine {
         "https://ecommerce-fe-nu.vercel.app",
         "https://ecommerce-fe-git-main-kaels-projects-7e91b725.vercel.app",
         "https://ecommerce-au20xy41z-kaels-projects-7e91b725.vercel.app",
-        "https://ecommerce-fe-nu.vercel.app/admin",
         "https://tunitoku.netlify.app",
-        "https://tunitoku.netlify.app/admin",
     } 
     config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
     config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization", "Accept", "X-Requested-With"}
     config.AllowCredentials = true 
     r.Use(cors.New(config))
-
-    r.Static("/uploads", "./uploads") // Serve static files
 
     r.GET("/", handler)
 	// User routes

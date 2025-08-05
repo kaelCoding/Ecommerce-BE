@@ -8,18 +8,18 @@ import (
     "fmt"
     "time"
     "encoding/json"
-	"path/filepath"
 
     
     "github.com/gin-gonic/gin"
 	"github.com/kaelCoding/toyBE/internal/models"
 	"github.com/kaelCoding/toyBE/internal/database"
+    "github.com/kaelCoding/toyBE/internal/pkg/cloudinary"
 )
 
 func AddProduct(c *gin.Context) {
     db := database.GetDB()
 
-    err := c.Request.ParseMultipartForm(10 << 20) // 10 * 1024 * 1024
+    err := c.Request.ParseMultipartForm(10 << 20)
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": "Error parsing form: " + err.Error()})
         return
@@ -45,19 +45,23 @@ func AddProduct(c *gin.Context) {
     imageURLs := []string{}
 
     for _, file := range files {
-        uniqueFileName := fmt.Sprintf("%d-%s", time.Now().UnixNano(), filepath.Base(file.Filename))
-        dst := filepath.Join("./uploads", uniqueFileName)
+		fileContent, err := file.Open()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to open uploaded file"})
+			return
+		}
+		defer fileContent.Close()
 
-        if err := c.SaveUploadedFile(file, dst); err != nil {
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to save file: " + err.Error()})
-            return
-        }
+		publicID := fmt.Sprintf("product_%d", time.Now().UnixNano())
 
-        // fileURL := fmt.Sprintf("https://ecommerce-be-w27g.onrender.com/uploads/%s", uniqueFileName)
-        fileURL := fmt.Sprintf("https://ecommerce-be-production-856c.up.railway.app/uploads/%s", uniqueFileName)
-        
-        imageURLs = append(imageURLs, fileURL)
-    }
+		fileURL, err := cloudinary.UploadToCloudinary(fileContent, "products", publicID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to upload file to Cloudinary: " + err.Error()})
+			return
+		}
+
+		imageURLs = append(imageURLs, fileURL)
+	}
 
     imageURLsJSON, err := json.Marshal(imageURLs)
     if err != nil {
@@ -76,7 +80,6 @@ func AddProduct(c *gin.Context) {
         ImageURLs:   imageURLsJSON,
     }
 
-    // 5. Kiểm tra Category tồn tại
     var category models.Category
     if err := db.First(&category, product.CategoryID).Error; err != nil {
         if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -87,13 +90,11 @@ func AddProduct(c *gin.Context) {
         return
     }
 
-    // 6. Lưu sản phẩm vào DB
     if err := db.Create(&product).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product: " + err.Error()})
         return
     }
     
-    // Trả về dữ liệu sản phẩm đã tạo thành công
     c.JSON(http.StatusCreated, gin.H{"data": product})
 }
 
@@ -182,16 +183,20 @@ func UpdateProduct(c *gin.Context) {
             var newImageURLs []string
             
             for _, file := range files {
-                uniqueFileName := fmt.Sprintf("%d-%s", time.Now().UnixNano(), filepath.Base(file.Filename))
-                dst := filepath.Join("./uploads", uniqueFileName)
+				fileContent, err := file.Open()
+				if err != nil {
+					// c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to open uploaded file"})
+			        return
+				}
+				defer fileContent.Close()
 
-                if err := c.SaveUploadedFile(file, dst); err != nil {
-                    c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to save file"})
+				publicID := fmt.Sprintf("product_update_%d", time.Now().UnixNano())
+				fileURL, err := cloudinary.UploadToCloudinary(fileContent, "products", publicID)
+				if err != nil {
                     return
-                }
-                fileURL := fmt.Sprintf("https://ecommerce-be-production-856c.up.railway.app/uploads/%s", uniqueFileName)
-                newImageURLs = append(newImageURLs, fileURL)
-            }
+				}
+				newImageURLs = append(newImageURLs, fileURL)
+			}
             
             imageURLsJSON, _ := json.Marshal(newImageURLs)
             existingProduct.ImageURLs = imageURLsJSON

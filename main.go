@@ -8,6 +8,7 @@ import (
 	"github.com/kaelCoding/toyBE/internal/database"
 	"github.com/kaelCoding/toyBE/internal/models"
 	"github.com/kaelCoding/toyBE/internal/router"
+	"github.com/kaelCoding/toyBE/internal/pkg/cloudinary"
 )
 
 func main() {
@@ -15,6 +16,8 @@ func main() {
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
+
+	cloudinary.Init()
 
 	database.ConnectDB()
 	err = database.DB.AutoMigrate(&models.Product{}, &models.Category{})
