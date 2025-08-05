@@ -53,7 +53,9 @@ func AddProduct(c *gin.Context) {
             return
         }
 
+        // fileURL := fmt.Sprintf("https://ecommerce-be-w27g.onrender.com/uploads/%s", uniqueFileName)
         fileURL := fmt.Sprintf("https://ecommerce-be-w27g.onrender.com/uploads/%s", uniqueFileName)
+        
         imageURLs = append(imageURLs, fileURL)
     }
 

@@ -37,7 +37,7 @@ func SetupRouter() *gin.Engine {
         "https://lbltxmh1-5173.asse.devtunnels.ms",
         "https://ecommerce-fe-4ezt.onrender.com",
         "https://kaelcoding.github.io/Ecommerce-FE",
-        "https://ecommerce-fe-bice.vercel.app",
+        "ecommerce-fe-bice.vercel.app",
     } 
     config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
     config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization", "Accept", "X-Requested-With"}
