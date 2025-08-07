@@ -59,6 +59,7 @@ func SetupRouter() *gin.Engine {
 	r.GET("/products/:id", handlers.GetProductByID)
 	r.PUT("/products/:id", handlers.UpdateProduct) 
 	r.DELETE("/products/:id", handlers.DeleteProduct)
+    r.GET("/products/search", handlers.SearchProducts)
 
 	// Category routes
 	r.POST("/category", handlers.AddCategory)

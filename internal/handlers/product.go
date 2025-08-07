@@ -226,3 +226,34 @@ func DeleteProduct(c *gin.Context) {
 
     c.JSON(http.StatusOK, gin.H{"message": "Product deleted"})
 }
+
+func SearchProducts(c *gin.Context) {
+    db := database.GetDB()
+    var products []models.Product
+
+    query := c.Query("q")
+
+    if query == "" {
+        c.JSON(http.StatusOK, products)
+        return
+    }
+
+    searchTerm := "%" + query + "%"
+
+    if err := db.Preload("Category").
+                  Order("created_at DESC").
+                  Where("LOWER(name) LIKE LOWER(?)", searchTerm).
+                  Limit(10).
+                  Find(&products).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    for i := range products {
+        if products[i].Category.ID != 0 {
+            products[i].CategoryName = products[i].Category.Name
+        }
+    }
+
+    c.JSON(http.StatusOK, products)
+}
