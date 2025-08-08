@@ -61,6 +61,8 @@ func SetupRouter() *gin.Engine {
 	r.DELETE("/products/:id", handlers.DeleteProduct)
     r.GET("/products/search", handlers.SearchProducts)
 
+    r.GET("/category/:id/products", handlers.GetProductsByCategory)
+
 	// Category routes
 	r.POST("/category", handlers.AddCategory)
     r.GET("/category", handlers.GetCategory)
@@ -69,6 +71,7 @@ func SetupRouter() *gin.Engine {
 	r.DELETE("/category/:id", handlers.DeleteCategory)
 
     r.POST("/orders", handlers.CreateOrderHandler)
+    r.POST("/feedback", handlers.SendFeedbackHandler)
 
     return r
 }

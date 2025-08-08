@@ -257,3 +257,38 @@ func SearchProducts(c *gin.Context) {
 
     c.JSON(http.StatusOK, products)
 }
+
+func GetProductsByCategory(c *gin.Context) {
+    db := database.GetDB()
+
+    categoryIDStr := c.Param("id")
+    categoryID, err := strconv.ParseUint(categoryIDStr, 10, 32)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid category ID"})
+        return
+    }
+
+    var category models.Category
+    if err := db.First(&category, categoryID).Error; err != nil {
+        if errors.Is(err, gorm.ErrRecordNotFound) {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Category not found"})
+            return
+        }
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+        return
+    }
+
+    var products []models.Product
+    if err := db.Preload("Category").Where("category_id = ?", categoryID).Order("created_at DESC").Find(&products).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+
+    for i := range products {
+        if products[i].Category.ID != 0 {
+            products[i].CategoryName = products[i].Category.Name
+        }
+    }
+
+    c.JSON(http.StatusOK, products)
+}
