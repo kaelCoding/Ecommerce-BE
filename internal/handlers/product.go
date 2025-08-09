@@ -185,7 +185,6 @@ func UpdateProduct(c *gin.Context) {
             for _, file := range files {
 				fileContent, err := file.Open()
 				if err != nil {
-					// c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to open uploaded file"})
 			        return
 				}
 				defer fileContent.Close()

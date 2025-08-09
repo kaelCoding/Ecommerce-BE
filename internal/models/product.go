@@ -9,7 +9,7 @@ type Product struct {
     gorm.Model
     ID              uint            `gorm:"primaryKey;autoIncrement" json:"ID"`
     Name            string          `json:"name"`
-    Description     string          `gorm:"size:255" json:"description"`
+    Description     string          `gorm:"type:text" json:"description"`
     Price           string          `json:"price"`
     CategoryID      uint            `gorm:"foreignKey:CategoryID" json:"category_id"`
     ImageURLs       datatypes.JSON  `json:"image_urls"`

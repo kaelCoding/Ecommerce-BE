@@ -38,11 +38,9 @@ func ConnectDB() {
     dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=require", dbHost, p, dbUser, dbPass, dbName)
     db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
     if err != nil {
-        // Updated panic message to include the actual error, which is helpful for debugging!
         panic(fmt.Sprintf("failed to connect database, got error: %v", err))
     }
 
-    // Migrate schema (replace with your migration logic)
     err = db.AutoMigrate(&models.Product{}, &models.Category{}, &models.User{})
     if err != nil {
         log.Println("Error migrating schema:", err)
