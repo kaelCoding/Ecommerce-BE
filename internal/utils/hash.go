@@ -1,7 +1,7 @@
 package utils
 
 import (
-  "golang.org/x/crypto/argon2" // Assuming you already have this package installed
+  "golang.org/x/crypto/argon2"
   "encoding/base64"
   "errors"
   "fmt"
