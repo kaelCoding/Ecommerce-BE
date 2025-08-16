@@ -8,4 +8,5 @@ type Order struct {
 	CustomerPhone   string `json:"customerPhone" binding:"required"`
 	CustomerAddress string `json:"customerAddress" binding:"required"`
 	PaymentMethod   string `json:"paymentMethod" binding:"required"`
+	CustomerEmail   string `json:"customerEmail"`
 }

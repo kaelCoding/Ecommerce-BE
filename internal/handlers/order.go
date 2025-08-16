@@ -21,5 +21,12 @@ func CreateOrderHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Order received successfully and email sent."})
+	if order.CustomerEmail != "" {
+        if err := services.SendInvoiceToCustomer(order); err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send customer invoice email: " + err.Error()})
+            return
+        }
+    }
+
+    c.JSON(http.StatusCreated, gin.H{"message": "Order received successfully and confirmation emails sent."})
 }

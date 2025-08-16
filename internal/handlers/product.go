@@ -16,6 +16,31 @@ import (
     "github.com/kaelCoding/toyBE/internal/pkg/cloudinary"
 )
 
+func createProductResponse(db *gorm.DB, product *models.Product) (map[string]interface{}, error) {
+    if err := db.Preload("Category").First(&product, product.ID).Error; err != nil {
+        return nil, err
+    }
+
+    var imageURLs []string
+    if product.ImageURLs != nil {
+        json.Unmarshal(product.ImageURLs, &imageURLs)
+    }
+
+    response := map[string]interface{}{
+        "ID":            product.ID,
+        "name":          product.Name,
+        "description":   product.Description,
+        "price":         product.Price,
+        "category_id":   product.CategoryID,
+        "category_name": product.Category.Name, 
+        "image_urls":    imageURLs,         
+        "CreatedAt":     product.CreatedAt,
+        "UpdatedAt":     product.UpdatedAt,
+    }
+    return response, nil
+}
+
+
 func AddProduct(c *gin.Context) {
     db := database.GetDB()
 
@@ -95,7 +120,13 @@ func AddProduct(c *gin.Context) {
         return
     }
     
-    c.JSON(http.StatusCreated, gin.H{"data": product})
+    response, err := createProductResponse(db, &product)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch product details: " + err.Error()})
+        return
+    }
+
+    c.JSON(http.StatusCreated, response) 
 }
 
 
@@ -145,7 +176,7 @@ func GetProductByID(c *gin.Context) {
 }
 
 func UpdateProduct(c *gin.Context) {
-    db := database.GetDB() // Lấy instance DB
+    db := database.GetDB()
 
     id, err := strconv.Atoi(c.Param("id"))
     if err != nil {
@@ -163,7 +194,7 @@ func UpdateProduct(c *gin.Context) {
         return
     }
 
-    err = c.Request.ParseMultipartForm(10 << 20) // Giới hạn 10MB
+    err = c.Request.ParseMultipartForm(10 << 20) 
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": "Error parsing form data"})
         return
@@ -207,7 +238,13 @@ func UpdateProduct(c *gin.Context) {
         return
     }
 
-    c.JSON(http.StatusOK, gin.H{"data": existingProduct})
+    response, err := createProductResponse(db, &existingProduct)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update product details: " + err.Error()})
+        return
+    }
+
+    c.JSON(http.StatusOK, response)
 }
 
 func DeleteProduct(c *gin.Context) {
