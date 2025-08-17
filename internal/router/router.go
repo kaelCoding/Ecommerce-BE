@@ -66,6 +66,7 @@ func SetupRouter() *gin.Engine {
 		api.GET("/categories", handlers.GetCategory) 
 		api.GET("/categories/:id", handlers.GetCategoryByID)
 		api.GET("/categories/:id/products", handlers.GetProductsByCategory)
+		api.GET("/categories/:id/products/limit", handlers.GetProductsByCategoryIDWithLimit)
 
 		// Public feedback route
 		api.POST("/feedback", handlers.SendFeedbackHandler)

@@ -175,6 +175,24 @@ func GetProductByID(c *gin.Context) {
     c.JSON(http.StatusOK, product)
 }
 
+func GetProductsByCategoryIDWithLimit(c *gin.Context) {
+    db := database.GetDB()
+    idStr := c.Param("id")
+    id, err := strconv.ParseUint(idStr, 10, 32)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid category ID"})
+        return
+    }
+
+    var products []models.Product
+    if err := db.Where("category_id = ?", id).Limit(4).Order("created_at DESC").Find(&products).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve products"})
+        return
+    }
+
+    c.JSON(http.StatusOK, products)
+}
+
 func UpdateProduct(c *gin.Context) {
     db := database.GetDB()
 
