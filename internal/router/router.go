@@ -69,13 +69,13 @@ func SetupRouter() *gin.Engine {
 
 		// Public feedback route
 		api.POST("/feedback", handlers.SendFeedbackHandler)
-        api.POST("/orders", handlers.CreateOrderHandler)
 
 		// --- Protected Routes (Requires user to be logged in) ---
 		protected := api.Group("/")
 		protected.Use(handlers.AuthMiddleware())
 		{
-			protected.GET("/profile", handlers.GetUser(db)) // Changed from /auth/info
+			protected.GET("/profile", handlers.GetUser(db))
+			protected.POST("/orders", handlers.CreateOrderHandler)
 		}
 
 		admin := api.Group("/admin")
@@ -90,7 +90,7 @@ func SetupRouter() *gin.Engine {
 			admin.DELETE("/products/:id", handlers.DeleteProduct)
 
 			// Category management
-			admin.POST("/categories", handlers.AddCategory) // Changed to plural
+			admin.POST("/categories", handlers.AddCategory)
 			admin.PUT("/categories/:id", handlers.UpdateCategory)
 			admin.DELETE("/categories/:id", handlers.DeleteCategory)
 		}

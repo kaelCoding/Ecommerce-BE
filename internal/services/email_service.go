@@ -35,6 +35,7 @@ func formatVND(amount int) string {
 
 
 func SendOrderConfirmationEmail(order models.Order) error {
+	finalTotal := order.TotalPrice + shippingFee
 	smtpHost := os.Getenv("SMTP_HOST")
 	smtpPort, _ := strconv.Atoi(os.Getenv("SMTP_PORT"))
 	smtpUser := os.Getenv("SMTP_USER")
@@ -47,15 +48,18 @@ func SendOrderConfirmationEmail(order models.Order) error {
 		<table border="1" cellpadding="10" cellspacing="0" style="border-collapse: collapse;">
 			<tr><td style="background-color: #f2f2f2;"><strong>Sản phẩm</strong></td><td>%s</td></tr>
 			<tr><td style="background-color: #f2f2f2;"><strong>Số lượng</strong></td><td>%d</td></tr>
+			<tr><td style="background-color: #f2f2f2;"><strong>Thành tiền</strong></td><td>%s</td></tr>
+            <tr><td style="background-color: #f2f2f2;"><strong>Phí cọc ship</strong></td><td>%s</td></tr>
 			<tr><td style="background-color: #f2f2f2;"><strong>Tổng tiền</strong></td><td>%s</td></tr>
 			<tr><td colspan="2" style="background-color: #f2f2f2; text-align: center;"><strong>Thông tin khách hàng</strong></td></tr>
 			<tr><td><strong>Họ và tên</strong></td><td>%s</td></tr>
 			<tr><td><strong>Số điện thoại</strong></td><td>%s</td></tr>
+			<tr><td><strong>Email</strong></td><td>%s</td></tr>
 			<tr><td><strong>Địa chỉ</strong></td><td>%s</td></tr>
 			<tr><td><strong>Phương thức thanh toán</strong></td><td>%s</td></tr>
 		</table>
 		<p>Vui lòng liên hệ khách hàng để xác nhận và xử lý đơn hàng.</p>
-	`, order.ProductName, order.Quantity, formatVND(order.TotalPrice), order.CustomerName, order.CustomerPhone, order.CustomerAddress, order.PaymentMethod)
+	`, order.ProductName, order.Quantity, formatVND(order.TotalPrice), formatVND(shippingFee), formatVND(finalTotal), order.CustomerName, order.CustomerPhone, order.CustomerEmail, order.CustomerAddress, order.PaymentMethod)
 
 	m := gomail.NewMessage()
 	m.SetHeader("From", smtpUser)
@@ -70,6 +74,57 @@ func SendOrderConfirmationEmail(order models.Order) error {
 	}
 
 	return nil
+}
+
+func SendInvoiceToCustomer(order models.Order) error {
+	finalTotal := order.TotalPrice + shippingFee
+    smtpHost := os.Getenv("SMTP_HOST")
+    smtpPort, _ := strconv.Atoi(os.Getenv("SMTP_PORT"))
+    smtpUser := os.Getenv("SMTP_USER")
+    smtpPass := os.Getenv("SMTP_PASS")
+
+	qrImageUrl := "https://res.cloudinary.com/dkrnoq3rb/image/upload/v1755360307/products/product_1755360303736929000.png"
+
+    body := fmt.Sprintf(`
+        <h1>Cảm ơn bạn đã đặt hàng tại TUNI TOKU!</h1>
+        <p>Chào <b>%s</b>,</p>
+        <p>Đơn hàng của bạn đã được tiếp nhận thành công. Chúng tôi sẽ sớm liên hệ với bạn để xác nhận và tiến hành giao hàng.</p>
+        
+        <h2>Chi tiết đơn hàng:</h2>
+        <table border="1" cellpadding="10" cellspacing="0" style="border-collapse: collapse;				">
+            <tr><td style="background-color: #f2f2f2;"><strong>Sản phẩm</strong></td><td>%s</td></tr>
+            <tr><td style="background-color: #f2f2f2;"><strong>Số lượng</strong></td><td>%d</td></tr>
+            <tr><td style="background-color: #f2f2f2;"><strong>Thành tiền</strong></td><td>%s</td></tr>
+            <tr><td style="background-color: #f2f2f2;"><strong>Phí cọc ship</strong></td><td>%s</td></tr>
+			<tr><td style="background-color: #f2f2f2;"><strong>Tổng cộng</strong></td><td>%s</td></tr>
+			<tr><td colspan="2" style="background-color: #f2f2f2; text-align: center;"><strong>Thông tin nhận hàng</strong></td></tr>
+			<tr><td><strong>Họ và tên</strong></td><td>%s</td></tr>
+			<tr><td><strong>Số điện thoại</strong></td><td>%s</td></tr>
+			<tr><td><strong>Email</strong></td><td>%s</td></tr>
+			<tr><td><strong>Địa chỉ</strong></td><td>%s</td></tr>
+			<tr><td><strong>Phương thức thanh toán</strong></td><td>%s</td></tr>
+        </table>
+
+		<h3>Mã QR code chuyển khoản:</h3>
+        <p>Quét mã QR bên dưới để thanh toán(Tiền cọc ship/Tổng tiền đơn hàng).</p>
+        <img src="%s" style="width: 250px; height: 250px;" alt="QR Code">
+
+        <p>Cảm ơn bạn đã tin tưởng và mua sắm tại TUNI TOKU!</p>
+    `, order.CustomerName, order.ProductName, order.Quantity, formatVND(order.TotalPrice), formatVND(shippingFee), formatVND(finalTotal), order.CustomerName, order.CustomerPhone, order.CustomerEmail, order.CustomerAddress, order.PaymentMethod, qrImageUrl)
+
+    m := gomail.NewMessage()
+    m.SetHeader("From", smtpUser)
+    m.SetHeader("To", order.CustomerEmail)
+    m.SetHeader("Subject", fmt.Sprintf("Xác nhận đơn hàng #%s từ TUNI TOKU", order.CustomerPhone))
+    m.SetBody("text/html", body)
+
+    d := gomail.NewDialer(smtpHost, smtpPort, smtpUser, smtpPass)
+
+    if err := d.DialAndSend(m); err != nil {
+        return err
+    }
+
+    return nil
 }
 
 func SendFeedbackEmail(feedback models.Feedback) error {
@@ -94,50 +149,6 @@ func SendFeedbackEmail(feedback models.Feedback) error {
     m.SetHeader("From", smtpUser)
     m.SetHeader("To", recipientEmail)
     m.SetHeader("Subject", fmt.Sprintf("Góp ý mới từ: %s", feedback.Name))
-    m.SetBody("text/html", body)
-
-    d := gomail.NewDialer(smtpHost, smtpPort, smtpUser, smtpPass)
-
-    if err := d.DialAndSend(m); err != nil {
-        return err
-    }
-
-    return nil
-}
-
-func SendInvoiceToCustomer(order models.Order) error {
-    smtpHost := os.Getenv("SMTP_HOST")
-    smtpPort, _ := strconv.Atoi(os.Getenv("SMTP_PORT"))
-    smtpUser := os.Getenv("SMTP_USER")
-    smtpPass := os.Getenv("SMTP_PASS")
-
-	finalTotal := order.TotalPrice + shippingFee
-
-    body := fmt.Sprintf(`
-        <h1>Cảm ơn bạn đã đặt hàng tại TUNI TOKU!</h1>
-        <p>Chào <b>%s</b>,</p>
-        <p>Đơn hàng của bạn đã được tiếp nhận thành công. Chúng tôi sẽ sớm liên hệ với bạn để xác nhận và tiến hành giao hàng.</p>
-        
-        <h2>Chi tiết đơn hàng:</h2>
-        <table border="1" cellpadding="10" cellspacing="0" style="border-collapse: collapse;				">
-            <tr><td style="background-color: #f2f2f2;"><strong>Sản phẩm</strong></td><td>%s</td></tr>
-            <tr><td style="background-color: #f2f2f2;"><strong>Số lượng</strong></td><td>%d</td></tr>
-            <tr><td style="background-color: #f2f2f2;"><strong>Thành tiền</strong></td><td>%s</td></tr>
-            <tr><td style="background-color: #f2f2f2;"><strong>Phí cọc ship</strong></td><td>%s</td></tr>
-			<tr><td style="background-color: #f2f2f2;"><strong>Tổng cộng</strong></td><td>%s</td></tr>
-			<tr><td colspan="2" style="background-color: #f2f2f2; text-align: center;"><strong>Thông tin giao hàng</strong></td></tr>
-			<tr><td><strong>Họ và tên</strong></td><td>%s</td></tr>
-			<tr><td><strong>Số điện thoại</strong></td><td>%s</td></tr>
-			<tr><td><strong>Địa chỉ</strong></td><td>%s</td></tr>
-			<tr><td><strong>Phương thức thanh toán</strong></td><td>%s</td></tr>
-        </table>
-        <p>Cảm ơn bạn đã tin tưởng và mua sắm tại TUNI TOKU!</p>
-    `, order.CustomerName, order.ProductName, order.Quantity, formatVND(order.TotalPrice), formatVND(shippingFee), formatVND(finalTotal), order.CustomerName, order.CustomerPhone, order.CustomerAddress, order.PaymentMethod)
-
-    m := gomail.NewMessage()
-    m.SetHeader("From", smtpUser)
-    m.SetHeader("To", order.CustomerEmail)
-    m.SetHeader("Subject", fmt.Sprintf("Xác nhận đơn hàng #%s từ TUNI TOKU", order.CustomerPhone))
     m.SetBody("text/html", body)
 
     d := gomail.NewDialer(smtpHost, smtpPort, smtpUser, smtpPass)
