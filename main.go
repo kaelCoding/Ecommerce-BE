@@ -16,7 +16,7 @@ import (
 func main() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		log.Printf("Cảnh báo: Không tìm thấy file .env, sẽ sử dụng biến môi trường hệ thống. Lỗi: %v\n", err)
 	}
 
 	cloudinary.Init()

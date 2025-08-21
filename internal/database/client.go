@@ -19,10 +19,10 @@ func GetDB() *gorm.DB {
 }
 
 func ConnectDB() {
-    err := godotenv.Load()
-    if err != nil {
-        log.Fatal("Error loading .env file")
-    }
+    // err := godotenv.Load()
+    // if err != nil {
+    //     log.Fatal("Error loading .env file")
+    // }
 
     dbHost := os.Getenv("DB_HOST")
     dbUser := os.Getenv("DB_USERNAME")
@@ -32,13 +32,13 @@ func ConnectDB() {
 
     p, err := strconv.Atoi(dbPort)
     if err != nil {
-        panic(err)
+        log.Fatalf("Invalid DB_PORT: %v", err)
     }
 
     dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=require", dbHost, p, dbUser, dbPass, dbName)
     db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
     if err != nil {
-        panic(fmt.Sprintf("failed to connect database, got error: %v", err))
+        log.Fatalf("failed to connect database, got error: %v", err)
     }
 
     err = db.AutoMigrate(&models.Product{}, &models.Category{}, &models.User{})
