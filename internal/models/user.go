@@ -10,8 +10,9 @@ type User struct {
 	gorm.Model
 	Username   string `gorm:"unique;not null;index" json:"username"`
 	Email      string `gorm:"unique;not null;index" json:"email"`
-	Password   string `gorm:"not null" json:"-"` 
+	Password   string `gorm:"not null" json:"password"` 
 	Admin      bool   `gorm:"default:false" json:"admin"`
+	FCMToken   string `json:"fcmToken"`
 }
 
 type UserResponse struct {

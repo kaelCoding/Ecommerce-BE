@@ -10,6 +10,7 @@ import (
 	"github.com/kaelCoding/toyBE/internal/models"
 	"github.com/kaelCoding/toyBE/internal/router"
 	"github.com/kaelCoding/toyBE/internal/pkg/cloudinary"
+	"github.com/kaelCoding/toyBE/internal/chat"
 )
 
 func main() {
@@ -19,11 +20,11 @@ func main() {
 	}
 
 	cloudinary.Init()
-
 	database.ConnectDB()
 
 	fmt.Println("Migrating database schemas...")
-	err = database.DB.AutoMigrate(&models.User{}, &models.Product{}, &models.Category{})
+
+	err = database.DB.AutoMigrate(&models.User{}, &models.Product{}, &models.Category{}, &models.Message{})
 	if err != nil {
 		log.Fatal("Error migrating schema:", err)
 	}
@@ -31,7 +32,10 @@ func main() {
 
 	database.CreateInitialAdmin(database.DB)
 
-	r := router.SetupRouter()
+	hub := chat.NewHub()
+	go hub.Run()
+
+	r := router.SetupRouter(hub)
 
 	port := os.Getenv("PORT")
 	if port == "" {

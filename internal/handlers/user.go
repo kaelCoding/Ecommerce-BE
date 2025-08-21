@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -32,6 +33,7 @@ func RegisterUser(db *gorm.DB) gin.HandlerFunc {
 			KeyLength:   32,
 		})
 		if err != nil {
+			log.Printf("Error hashing password: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
 			return
 		}
@@ -98,7 +100,7 @@ func LoginUser(db *gorm.DB) gin.HandlerFunc {
 			Email:    user.Email,
 			Admin:    user.Admin,
 			RegisteredClaims: jwt.RegisteredClaims{
-				ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)), // Token valid for 24 hours
+				ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
 				IssuedAt:  jwt.NewNumericDate(time.Now()),
 				NotBefore: jwt.NewNumericDate(time.Now()),
 			},
@@ -153,35 +155,47 @@ func GetUser(db *gorm.DB) gin.HandlerFunc {
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
-			c.Abort()
+		var tokenString string
+
+		if c.Query("token") != "" {
+			tokenString = c.Query("token")
+		} else {
+			authHeader := c.GetHeader("Authorization")
+			if authHeader == "" {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+				return
+			}
+
+			parts := strings.Split(authHeader, " ")
+			if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header format must be Bearer {token}"})
+				return
+			}
+			tokenString = parts[1]
+		}
+
+		if tokenString == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authentication token not provided"})
 			return
 		}
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
-			c.Abort()
-			return
-		}
-
-		tokenString := parts[1]
 		jwtSecret := os.Getenv("JWT_SECRET")
-
 		claims := &models.CustomJWTClaims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
 			return []byte(jwtSecret), nil
 		})
 
 		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
-			c.Abort()
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			return
 		}
 
 		c.Set("userID", claims.ID)
+		c.Set("username", claims.Username)
+		c.Set("email", claims.Email)
 		c.Set("isAdmin", claims.Admin)
 
 		c.Next()
@@ -205,4 +219,23 @@ func AdminOnlyMiddleware() gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func GetAdminInfo(db *gorm.DB) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        var adminUser models.User
+        if err := db.Where("admin = ?", true).First(&adminUser).Error; err != nil {
+            if err == gorm.ErrRecordNotFound {
+                c.JSON(http.StatusNotFound, gin.H{"error": "Admin user not found"})
+                return
+            }
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error while finding admin"})
+            return
+        }
+
+        c.JSON(http.StatusOK, gin.H{
+            "id":       adminUser.ID,
+            "username": adminUser.Username,
+        })
+    }
 }

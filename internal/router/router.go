@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kaelCoding/toyBE/internal/database"
 	"github.com/kaelCoding/toyBE/internal/handlers"
+	"github.com/kaelCoding/toyBE/internal/chat"
 )
 
 type Data struct {
@@ -28,17 +29,13 @@ func handler(c *gin.Context) {
 	}
 }
 
-func SetupRouter() *gin.Engine {
+func SetupRouter(hub *chat.Hub) *gin.Engine {
 	r := gin.Default()
 	db := database.DB
 
 	config := cors.DefaultConfig()
 	config.AllowOrigins = []string{
 		"http://localhost:5173",
-		"https://kaelcoding.github.io/Ecommerce-FE",
-		"https://ecommerce-fe-nu.vercel.app",
-		"https://ecommerce-fe-git-main-kaels-projects-7e91b725.vercel.app",
-		"https://ecommerce-au20xy41z-kaels-projects-7e91b725.vercel.app",
 		"https://tunitoku.netlify.app",
 	}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
@@ -50,25 +47,21 @@ func SetupRouter() *gin.Engine {
 
 	api := r.Group("/api/v1")
 	{
-		// --- Public Routes (No authentication required) ---
 		auth := api.Group("/auth")
 		{
 			auth.POST("/register", handlers.RegisterUser(db))
 			auth.POST("/login", handlers.LoginUser(db))
 		}
 
-		// Public product routes
 		api.GET("/products", handlers.GetProducts)
 		api.GET("/products/:id", handlers.GetProductByID)
 		api.GET("/products/search", handlers.SearchProducts)
 
-		// Public category routes
 		api.GET("/categories", handlers.GetCategory) 
 		api.GET("/categories/:id", handlers.GetCategoryByID)
 		api.GET("/categories/:id/products", handlers.GetProductsByCategory)
 		api.GET("/categories/:id/products/limit", handlers.GetProductsByCategoryIDWithLimit)
 
-		// Public feedback route
 		api.POST("/feedback", handlers.SendFeedbackHandler)
 
 		// --- Protected Routes (Requires user to be logged in) ---
@@ -76,21 +69,26 @@ func SetupRouter() *gin.Engine {
 		protected.Use(handlers.AuthMiddleware())
 		{
 			protected.GET("/profile", handlers.GetUser(db))
+
 			protected.POST("/orders", handlers.CreateOrderHandler)
+			
+			protected.GET("/ws", handlers.ChatEndpoint(hub, db))
+            protected.GET("/chat/history", handlers.GetChatHistory(db))
+			protected.GET("/admin-info", handlers.GetAdminInfo(db))
+
+			protected.POST("/fcm/token", handlers.UpdateFCMToken(db)) 
 		}
 
 		admin := api.Group("/admin")
 		admin.Use(handlers.AuthMiddleware())
 		admin.Use(handlers.AdminOnlyMiddleware())
 		{
-			// User management
 			admin.GET("/users", handlers.GetAllUsers(db))
 
 			admin.POST("/products", handlers.AddProduct)
 			admin.PUT("/products/:id", handlers.UpdateProduct)
 			admin.DELETE("/products/:id", handlers.DeleteProduct)
 
-			// Category management
 			admin.POST("/categories", handlers.AddCategory)
 			admin.PUT("/categories/:id", handlers.UpdateCategory)
 			admin.DELETE("/categories/:id", handlers.DeleteCategory)
