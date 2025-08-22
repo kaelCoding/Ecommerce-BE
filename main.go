@@ -11,6 +11,8 @@ import (
 	"github.com/kaelCoding/toyBE/internal/router"
 	"github.com/kaelCoding/toyBE/internal/pkg/cloudinary"
 	"github.com/kaelCoding/toyBE/internal/chat"
+	"github.com/kaelCoding/toyBE/internal/loyalty"
+    "github.com/robfig/cron/v3"
 )
 
 func main() {
@@ -21,16 +23,22 @@ func main() {
 
 	cloudinary.Init()
 	database.ConnectDB()
+	db := database.GetDB()
 
 	fmt.Println("Migrating database schemas...")
 
-	err = database.DB.AutoMigrate(&models.User{}, &models.Product{}, &models.Category{}, &models.Message{})
+	err = database.DB.AutoMigrate(&models.User{}, &models.Product{}, &models.Category{}, &models.Message{}, &models.Order{}, &models.OrderItem{},)
 	if err != nil {
 		log.Fatal("Error migrating schema:", err)
 	}
 	fmt.Println("Database migration successful.")
 
 	database.CreateInitialAdmin(database.DB)
+
+	c := cron.New()
+	c.AddFunc("0 1 * * *", func() { loyalty.CheckAndApplyDemotions(db) })
+	c.Start()
+	log.Println("Cron job for VIP demotion checks scheduled.")
 
 	hub := chat.NewHub()
 	go hub.Run()
