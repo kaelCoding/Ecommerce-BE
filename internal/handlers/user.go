@@ -121,11 +121,25 @@ func LoginUser(db *gorm.DB) gin.HandlerFunc {
 
 func GetAllUsers(db *gorm.DB) gin.HandlerFunc {
     return func(c *gin.Context) {
-        var userResponses []models.UserResponse
-
-        if err := db.Model(&models.User{}).Select("id, username, email, admin").Find(&userResponses).Error; err != nil {
+        var users []models.User
+        
+        if err := db.Where("admin = ?", false).Order("id asc").Find(&users).Error; err != nil {
             c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
             return
+        }
+
+        var userResponses []models.AdminUserResponse
+        for _, user := range users {
+            userResponses = append(userResponses, models.AdminUserResponse{
+                ID:                 user.ID,
+                Username:           user.Username,
+                Email:              user.Email,
+                Admin:              user.Admin,
+                TotalSpent:         user.TotalSpent,
+                VIPLevel:           user.VIPLevel,
+                VIPExpiryDate:      user.VIPExpiryDate,
+                DiscountPercentage: user.DiscountPercentage,
+            })
         }
 
         c.JSON(http.StatusOK, userResponses)

@@ -33,7 +33,7 @@ func main() {
 	}
 	fmt.Println("Database migration successful.")
 
-	database.CreateInitialAdmin(database.DB)
+	// database.CreateInitialAdmin(database.DB)
 
 	c := cron.New()
 	c.AddFunc("0 1 * * *", func() { loyalty.CheckAndApplyDemotions(db) })

@@ -8,7 +8,6 @@ import (
 
     "gorm.io/driver/postgres"
     "gorm.io/gorm"
-    // "github.com/joho/godotenv"
     "github.com/kaelCoding/toyBE/internal/models"
 )
 
@@ -19,11 +18,6 @@ func GetDB() *gorm.DB {
 }
 
 func ConnectDB() {
-    // err := godotenv.Load()
-    // if err != nil {
-    //     log.Fatal("Error loading .env file")
-    // }
-
     dbHost := os.Getenv("DB_HOST")
     dbUser := os.Getenv("DB_USERNAME")
     dbPass := os.Getenv("DB_PASSWORD")

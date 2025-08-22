@@ -4,6 +4,7 @@ import (
     "fmt"
     "os"
     "strconv"
+	"strings"
 
     "github.com/kaelCoding/toyBE/internal/models"
     "gopkg.in/gomail.v2"
@@ -12,25 +13,21 @@ import (
 const shippingFee = 50000
 
 func formatVND(amount float64) string {
-    s := strconv.Itoa(int(amount))
+	roundedAmount := int(amount + 0.5)
+	s := strconv.Itoa(roundedAmount)
     n := len(s)
     if n <= 3 {
         return s + " VNĐ"
     }
 
-    sepCount := (n - 1) / 3
-    result := make([]byte, n+sepCount)
-
-    j := len(result) - 1
-    for i := n - 1; i >= 0; i-- {
-        result[j] = s[i]
-        j--
-        if (n-1-i)%3 == 2 && i > 0 {
-            result[j] = '.'
-            j--
+    var result strings.Builder
+    for i, r := range s {
+        result.WriteRune(r)
+        if (n-1-i)%3 == 0 && i != n-1 {
+            result.WriteRune('.')
         }
     }
-    return string(result) + " VNĐ"
+    return result.String() + " VNĐ"
 }
 
 func SendOrderConfirmationEmail(order models.Order) error {
@@ -59,7 +56,7 @@ func SendOrderConfirmationEmail(order models.Order) error {
             <tr><td style="background-color: #f2f2f2;"><strong>Số lượng</strong></td><td>%d</td></tr>
             <tr><td style="background-color: #f2f2f2;"><strong>Thành tiền</strong></td><td>%s</td></tr>
             <tr><td style="background-color: #f2f2f2;"><strong>Giảm giá VIP</strong></td><td>%s</td></tr>
-            <tr><td style="background-color: #f2f2f2;"><strong>Phí cọc ship</strong></td><td>%s</td></tr>
+            <tr><td style="background-color: #f2f2f2;"><strong>Phí ship</strong></td><td>%s</td></tr>
             <tr><td style="background-color: #f2f2f2;"><strong>Tổng thanh toán</strong></td><td><strong>%s</strong></td></tr>
             <tr><td colspan="2" style="background-color: #f2f2f2; text-align: center;"><strong>Thông tin khách hàng</strong></td></tr>
             <tr><td><strong>Họ và tên</strong></td><td>%s</td></tr>
@@ -110,7 +107,7 @@ func SendInvoiceToCustomer(order models.Order, customerEmail string) error {
             <tr><td style="background-color: #f2f2f2;"><strong>Số lượng</strong></td><td>%d</td></tr>
             <tr><td style="background-color: #f2f2f2;"><strong>Thành tiền</strong></td><td>%s</td></tr>
             <tr><td style="background-color: #f2f2f2;"><strong>Giảm giá VIP</strong></td><td>%s</td></tr>
-            <tr><td style="background-color: #f2f2f2;"><strong>Phí cọc ship</strong></td><td>%s</td></tr>
+            <tr><td style="background-color: #f2f2f2;"><strong>Phí ship</strong></td><td>%s</td></tr>
             <tr><td style="background-color: #f2f2f2;"><strong>Tổng thanh toán</strong></td><td><strong>%s</strong></td></tr>
             <tr><td colspan="2" style="background-color: #f2f2f2; text-align: center;"><strong>Thông tin nhận hàng</strong></td></tr>
             <tr><td><strong>Họ và tên</strong></td><td>%s</td></tr>
@@ -120,7 +117,7 @@ func SendInvoiceToCustomer(order models.Order, customerEmail string) error {
         </table>
 
         <h3>Mã QR code chuyển khoản:</h3>
-        <p>Quét mã QR bên dưới để thanh toán(Tiền cọc ship/Tổng tiền đơn hàng).</p>
+        <p>Quét mã QR bên dưới để thanh toán(Tiền ship/Tổng tiền đơn hàng).</p>
         <img src="%s" style="width: 250px; height: 250px;" alt="QR Code">
 
         <p>Cảm ơn bạn đã tin tưởng và mua sắm tại TUNI TOKU!</p>

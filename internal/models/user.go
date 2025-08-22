@@ -41,6 +41,17 @@ type UserResponse struct {
 	Admin     bool   `json:"admin"`
 }
 
+type AdminUserResponse struct {
+	ID                  uint       `json:"id"`
+	Username            string     `json:"username"`
+	Email               string     `json:"email"`
+	Admin               bool       `json:"admin"`
+	TotalSpent          float64    `json:"totalSpent"`
+	VIPLevel            int        `json:"vipLevel"`
+	VIPExpiryDate       *time.Time `json:"vipExpiryDate"`
+	DiscountPercentage  float64    `json:"discountPercentage"`
+}
+
 type Login struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
