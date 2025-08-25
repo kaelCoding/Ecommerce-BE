@@ -184,8 +184,15 @@ func GetProductsByCategoryIDWithLimit(c *gin.Context) {
         return
     }
 
+    limitQuery := c.DefaultQuery("limit", "4")
+    limit, err := strconv.Atoi(limitQuery)
+    if err != nil || limit <= 0 {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit parameter. Must be a positive integer."})
+        return
+    }
+
     var products []models.Product
-    if err := db.Where("category_id = ?", id).Limit(4).Order("created_at DESC").Find(&products).Error; err != nil {
+    if err := db.Where("category_id = ?", id).Limit(limit).Order("created_at DESC").Preload("Category").Find(&products).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve products"})
         return
     }

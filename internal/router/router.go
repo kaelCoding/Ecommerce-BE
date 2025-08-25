@@ -64,7 +64,6 @@ func SetupRouter(hub *chat.Hub) *gin.Engine {
 
 		api.POST("/feedback", handlers.SendFeedbackHandler)
 
-		// --- Protected Routes (Requires user to be logged in) ---
 		protected := api.Group("/")
 		protected.Use(handlers.AuthMiddleware())
 		{
