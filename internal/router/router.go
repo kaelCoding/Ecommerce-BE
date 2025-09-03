@@ -37,6 +37,7 @@ func SetupRouter(hub *chat.Hub) *gin.Engine {
 	config.AllowOrigins = []string{
 		"http://localhost:5173",
 		"https://tunitoku.netlify.app",
+		"https://tunitoku.store",
 	}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization", "Accept", "X-Requested-With"}

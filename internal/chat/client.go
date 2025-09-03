@@ -26,7 +26,7 @@ var upgrader = websocket.Upgrader{
     WriteBufferSize: 1024,
     CheckOrigin: func(r *http.Request) bool {
         origin := r.Header.Get("Origin")
-        allowedOrigins := []string{"http://localhost:5173", "https://tunitoku.netlify.app"}
+        allowedOrigins := []string{"http://localhost:5173", "https://tunitoku.netlify.app", "https://tunitoku.store"}
         for _, o := range allowedOrigins {
             if o == origin {
                 return true
