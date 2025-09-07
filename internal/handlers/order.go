@@ -4,6 +4,7 @@ import (
     "log"
     "net/http"
     "strconv"
+	"gorm.io/gorm"
 
     "github.com/gin-gonic/gin"
     "github.com/kaelCoding/toyBE/internal/database"
@@ -118,4 +119,15 @@ func CreateOrderHandler(c *gin.Context) {
         "message": "Order created successfully. Confirmation emails are being sent.",
         "order":   order,
     })
+}
+
+func GetAllOrders(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var orders []models.Order
+		if err := db.Preload("User").Order("created_at desc").Find(&orders).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve orders"})
+			return
+		}
+		c.JSON(http.StatusOK, orders)
+	}
 }

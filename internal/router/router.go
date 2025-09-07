@@ -64,18 +64,17 @@ func SetupRouter(hub *chat.Hub) *gin.Engine {
 		api.GET("/categories/:id/products/limit", handlers.GetProductsByCategoryIDWithLimit)
 
 		api.POST("/feedback", handlers.SendFeedbackHandler)
+		api.POST("/spin", handlers.SpinByShippingCode(db))
+		api.GET("/rewards", handlers.GetRewards(db))
 
 		protected := api.Group("/")
 		protected.Use(handlers.AuthMiddleware())
 		{
 			protected.GET("/profile", handlers.GetUser(db))
-
 			protected.POST("/orders", handlers.CreateOrderHandler)
-			
 			protected.GET("/ws", handlers.ChatEndpoint(hub, db))
             protected.GET("/chat/history", handlers.GetChatHistory(db))
 			protected.GET("/admin-info", handlers.GetAdminInfo(db))
-
 			protected.POST("/fcm/token", handlers.UpdateFCMToken(db)) 
 		}
 
@@ -92,6 +91,12 @@ func SetupRouter(hub *chat.Hub) *gin.Engine {
 			admin.POST("/categories", handlers.AddCategory)
 			admin.PUT("/categories/:id", handlers.UpdateCategory)
 			admin.DELETE("/categories/:id", handlers.DeleteCategory)
+
+			admin.GET("/orders", handlers.GetAllOrders(db))
+    		admin.PUT("/orders/:id/shipping-code", handlers.UpdateShippingCode(db))
+			admin.POST("/rewards", handlers.AddReward(db))
+			admin.PUT("/rewards/:id", handlers.UpdateReward(db))
+			admin.DELETE("/rewards/:id", handlers.DeleteReward(db))
 		}
 	}
 
