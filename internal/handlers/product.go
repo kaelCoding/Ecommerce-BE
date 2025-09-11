@@ -353,3 +353,15 @@ func GetProductsByCategory(c *gin.Context) {
 
     c.JSON(http.StatusOK, products)
 }
+
+func GetAllProductIDs(c *gin.Context) {
+    db := database.GetDB()
+    var ids []uint
+
+    if err := db.Model(&models.Product{}).Pluck("id", &ids).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve product IDs"})
+        return
+    }
+
+    c.JSON(http.StatusOK, ids)
+}

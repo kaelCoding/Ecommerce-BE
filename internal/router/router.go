@@ -55,6 +55,7 @@ func SetupRouter(hub *chat.Hub) *gin.Engine {
 		}
 
 		api.GET("/products", handlers.GetProducts)
+		api.GET("/products/ids", handlers.GetAllProductIDs)
 		api.GET("/products/:id", handlers.GetProductByID)
 		api.GET("/products/search", handlers.SearchProducts)
 
