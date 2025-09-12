@@ -3,7 +3,9 @@ package handlers
 import (
     "net/http"
     "strconv"
-    
+    "gorm.io/gorm"
+    "strings"
+
     "github.com/gin-gonic/gin"
 	"github.com/kaelCoding/toyBE/internal/models"
 	"github.com/kaelCoding/toyBE/internal/database"
@@ -93,4 +95,31 @@ func DeleteCategory(c *gin.Context) {
     }
 
     c.JSON(http.StatusOK, gin.H{"message": "Category deleted permanently"})
+}
+
+func toSlug(s string) string {
+    s = strings.ToLower(s)
+    s = strings.ReplaceAll(s, " ", "-")
+    return s
+}
+
+func GetSitemapCategories(db *gorm.DB) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        var categories []models.Category
+        
+        if err := db.Select("ID", "Name", "UpdatedAt").Find(&categories).Error; err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve categories for sitemap"})
+            return
+        }
+
+        var result []gin.H
+        for _, cat := range categories {
+            result = append(result, gin.H{
+                "slug":      toSlug(cat.Name),
+                "updatedAt": cat.UpdatedAt,
+            })
+        }
+
+        c.JSON(http.StatusOK, result)
+    }
 }

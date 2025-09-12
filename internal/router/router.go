@@ -68,6 +68,9 @@ func SetupRouter(hub *chat.Hub) *gin.Engine {
 		api.POST("/spin", handlers.SpinByShippingCode(db))
 		api.GET("/rewards", handlers.GetRewards(db))
 
+		api.GET("/sitemap/products", handlers.GetSitemapProducts(db))
+        api.GET("/sitemap/categories", handlers.GetSitemapCategories(db))
+
 		protected := api.Group("/")
 		protected.Use(handlers.AuthMiddleware())
 		{

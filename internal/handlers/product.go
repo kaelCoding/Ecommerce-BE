@@ -365,3 +365,23 @@ func GetAllProductIDs(c *gin.Context) {
 
     c.JSON(http.StatusOK, ids)
 }
+
+func GetSitemapProducts(db *gorm.DB) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        var products []models.Product
+        if err := db.Select("ID", "UpdatedAt").Find(&products).Error; err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve products for sitemap"})
+            return
+        }
+
+        var result []gin.H
+        for _, p := range products {
+            result = append(result, gin.H{
+                "id":        p.ID,
+                "updatedAt": p.UpdatedAt,
+            })
+        }
+
+        c.JSON(http.StatusOK, result)
+    }
+}
