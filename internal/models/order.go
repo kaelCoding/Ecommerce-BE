@@ -28,8 +28,8 @@ type Order struct {
 	CustomerEmail   string      `json:"customerEmail"`
 	PaymentMethod   string      `json:"paymentMethod"`
 	OrderItems      []OrderItem `gorm:"foreignKey:OrderID" json:"orderItems"`
-	ShippingCode 	string `gorm:"unique;index" json:"shippingCode"`
-	HasSpun      	bool   `gorm:"default:false" json:"hasSpun"`
+	ShippingCode 	string 		`gorm:"unique;index" json:"shippingCode"`
+	HasSpun      	bool   		`gorm:"default:false" json:"hasSpun"`
 }
 
 type OrderItem struct {

@@ -64,9 +64,9 @@ func SetupRouter(hub *chat.Hub) *gin.Engine {
 		api.GET("/categories/:id/products", handlers.GetProductsByCategory)
 		api.GET("/categories/:id/products/limit", handlers.GetProductsByCategoryIDWithLimit)
 
-		api.POST("/feedback", handlers.SendFeedbackHandler)
 		api.POST("/spin", handlers.SpinByShippingCode(db))
 		api.GET("/rewards", handlers.GetRewards(db))
+		api.POST("/feedback", handlers.SendFeedbackHandler)
 
 		api.GET("/sitemap/products", handlers.GetSitemapProducts(db))
         api.GET("/sitemap/categories", handlers.GetSitemapCategories(db))

@@ -5,6 +5,8 @@ import (
     "net/http"
     "strconv"
 	"gorm.io/gorm"
+    "math/rand"
+    "time"
 
     "github.com/gin-gonic/gin"
     "github.com/kaelCoding/toyBE/internal/database"
@@ -13,112 +15,125 @@ import (
     "github.com/kaelCoding/toyBE/internal/services"
 )
 
+func generateShippingCode() string {
+	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	seededRand := rand.New(rand.NewSource(time.Now().UnixNano()))
+	b := make([]byte, 10)
+	for i := range b {
+		b[i] = charset[seededRand.Intn(len(charset))]
+	}
+	return string(b)
+}
+
 func CreateOrderHandler(c *gin.Context) {
-    var req models.OrderRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data: " + err.Error()})
-        return
-    }
+	var req models.OrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data: " + err.Error()})
+		return
+	}
 
-    userID, exists := c.Get("userID")
-    if !exists {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-        return
-    }
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
 
-    db := database.GetDB()
-    var user models.User
-    if err := db.First(&user, userID).Error; err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-        return
-    }
+	db := database.GetDB()
+	var user models.User
+	if err := db.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
 
-    tx := db.Begin()
-    defer func() {
-        if r := recover(); r != nil {
-            tx.Rollback()
-            log.Printf("Recovered from panic: %v", r)
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "An internal error occurred"})
-        }
-    }()
-    
-    var product models.Product
-    if err := tx.First(&product, req.ProductID).Error; err != nil {
-        tx.Rollback()
-        c.JSON(http.StatusNotFound, gin.H{"error": "Product with ID " + strconv.Itoa(int(req.ProductID)) + " not found"})
-        return
-    }
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			log.Printf("Recovered from panic: %v", r)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "An internal error occurred"})
+		}
+	}()
 
-    price, _ := strconv.ParseFloat(product.Price, 64)
-    originalAmount := price * float64(req.Quantity)
+	var product models.Product
+	if err := tx.First(&product, req.ProductID).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusNotFound, gin.H{"error": "Product with ID " + strconv.Itoa(int(req.ProductID)) + " not found"})
+		return
+	}
 
-    orderItems := []models.OrderItem{
-        {
-            ProductID: req.ProductID,
-            Quantity:  req.Quantity,
-            Price:     price,
-        },
-    }
+	price, _ := strconv.ParseFloat(product.Price, 64)
+	originalAmount := price * float64(req.Quantity)
 
-    vipInfo := loyalty.GetVIPLevelInfo(user.VIPLevel)
-    discountAmount := originalAmount * vipInfo.Discount
-    finalAmount := originalAmount - discountAmount
+	orderItems := []models.OrderItem{
+		{
+			ProductID: req.ProductID,
+			Quantity:  req.Quantity,
+			Price:     price,
+		},
+	}
 
-    order := models.Order{
-        UserID:          user.ID,
-        OriginalAmount:  originalAmount,
-        DiscountApplied: discountAmount,
-        TotalAmount:     finalAmount, 
-        Status:          "completed",
-        CustomerName:    req.CustomerName,
-        CustomerPhone:   req.CustomerPhone,
-        CustomerAddress: req.CustomerAddress,
-        CustomerEmail:   req.CustomerEmail,
-        PaymentMethod:   req.PaymentMethod,
-        OrderItems:      orderItems,
-    }
+	vipInfo := loyalty.GetVIPLevelInfo(user.VIPLevel)
+	discountAmount := originalAmount * vipInfo.Discount
+	finalAmount := originalAmount - discountAmount
 
-    if err := tx.Create(&order).Error; err != nil {
-        tx.Rollback()
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create order"})
-        return
-    }
+	shippingCode := generateShippingCode()
 
-    if err := loyalty.UpdateUserLoyaltyStatus(tx, user.ID, order.TotalAmount); err != nil {
-        tx.Rollback()
-        log.Printf("Failed to update loyalty status for user %d: %v", user.ID, err)
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update loyalty status"})
-        return
-    }
+	order := models.Order{
+		UserID:          user.ID,
+		OriginalAmount:  originalAmount,
+		DiscountApplied: discountAmount,
+		TotalAmount:     finalAmount,
+		Status:          "completed",
+		CustomerName:    req.CustomerName,
+		CustomerPhone:   req.CustomerPhone,
+		CustomerAddress: req.CustomerAddress,
+		CustomerEmail:   req.CustomerEmail,
+		PaymentMethod:   req.PaymentMethod,
+		OrderItems:      orderItems,
+		ShippingCode:    shippingCode,
+	}
 
-    if err := tx.Commit().Error; err != nil {
-        tx.Rollback()
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
-        return
-    }
+	if err := tx.Create(&order).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create order: " + err.Error()}) // Thêm err.Error() để log lỗi chi tiết hơn
+		return
+	}
 
-    go func() {
-        var fullOrder models.Order
-        if err := db.Preload("User").Preload("OrderItems.Product").First(&fullOrder, order.ID).Error; err != nil {
-            log.Printf("Error fetching full order details for email (OrderID: %d): %v", order.ID, err)
-            return
-        }
+	if err := loyalty.UpdateUserLoyaltyStatus(tx, user.ID, order.TotalAmount); err != nil {
+		tx.Rollback()
+		log.Printf("Failed to update loyalty status for user %d: %v", user.ID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update loyalty status"})
+		return
+	}
 
-        if err := services.SendOrderConfirmationEmail(fullOrder); err != nil {
-            log.Printf("Failed to send order confirmation email to admin (OrderID: %d): %v", fullOrder.ID, err)
-        }
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
 
-        if fullOrder.CustomerEmail != "" {
-            if err := services.SendInvoiceToCustomer(fullOrder, fullOrder.CustomerEmail); err != nil {
-                log.Printf("Failed to send invoice email to customer (OrderID: %d): %v", fullOrder.ID, err)
-            }
-        }
-    }()
+	go func() {
+		var fullOrder models.Order
+		if err := db.Preload("User").Preload("OrderItems.Product").First(&fullOrder, order.ID).Error; err != nil {
+			log.Printf("Error fetching full order details for email (OrderID: %d): %v", order.ID, err)
+			return
+		}
 
-    c.JSON(http.StatusCreated, gin.H{
-        "message": "Order created successfully. Confirmation emails are being sent.",
-        "order":   order,
-    })
+		if err := services.SendOrderConfirmationEmail(fullOrder); err != nil {
+			log.Printf("Failed to send order confirmation email to admin (OrderID: %d): %v", fullOrder.ID, err)
+		}
+
+		if fullOrder.CustomerEmail != "" {
+			if err := services.SendInvoiceToCustomer(fullOrder, fullOrder.CustomerEmail); err != nil {
+				log.Printf("Failed to send invoice email to customer (OrderID: %d): %v", fullOrder.ID, err)
+			}
+		}
+	}()
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Order created successfully. Confirmation emails are being sent.",
+		"order":   order,
+	})
 }
 
 func GetAllOrders(db *gorm.DB) gin.HandlerFunc {
