@@ -5,12 +5,10 @@ import (
     "log"
     "time"
     "net/http"
-    "strconv"
 
     "github.com/gorilla/websocket"
     "github.com/kaelCoding/toyBE/internal/database"
     "github.com/kaelCoding/toyBE/internal/models"
-    "github.com/kaelCoding/toyBE/internal/fcm"
     "github.com/gin-gonic/gin"
 )
 
@@ -109,18 +107,6 @@ func (c *Client) readPump() {
             default:
                 close(recipient.send)
                 delete(c.hub.clients, recipient.userID)
-            }
-        } else {
-            var recipientUser models.User
-            db.First(&recipientUser, receiverID)
-            
-            if recipientUser.FCMToken != "" {
-                fcm.SendNotification(
-                    recipientUser.FCMToken,
-                    "Tin nhắn mới từ " + senderUser.Username,
-                    msg.Content,
-                    strconv.FormatUint(uint64(c.userID), 10),
-                )
             }
         }
         

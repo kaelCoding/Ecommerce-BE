@@ -13,7 +13,6 @@ type User struct {
 	Email      			string `gorm:"unique;not null;index" json:"email"`
 	Password   			string `gorm:"not null" json:"password"` 
 	Admin      			bool   `gorm:"default:false" json:"admin"`
-	FCMToken   			string `json:"fcmToken"`
 	TotalSpent          float64    `gorm:"default:0" json:"totalSpent"`
 	VIPLevel            int        `gorm:"default:0" json:"vipLevel"`
 	VIPExpiryDate       *time.Time `json:"vipExpiryDate"` 

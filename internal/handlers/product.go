@@ -8,12 +8,12 @@ import (
     "fmt"
     "time"
     "encoding/json"
-
+    "path/filepath"
     
     "github.com/gin-gonic/gin"
 	"github.com/kaelCoding/toyBE/internal/models"
 	"github.com/kaelCoding/toyBE/internal/database"
-    "github.com/kaelCoding/toyBE/internal/pkg/cloudinary"
+    "github.com/kaelCoding/toyBE/internal/pkg/r2"
 )
 
 func createProductResponse(db *gorm.DB, product *models.Product) (map[string]interface{}, error) {
@@ -77,11 +77,14 @@ func AddProduct(c *gin.Context) {
 		}
 		defer fileContent.Close()
 
-		publicID := fmt.Sprintf("product_%d", time.Now().UnixNano())
+		extension := filepath.Ext(file.Filename)
+		filename := fmt.Sprintf("product_%d%s", time.Now().UnixNano(), extension)
 
-		fileURL, err := cloudinary.UploadToCloudinary(fileContent, "products", publicID)
+        contentType := file.Header.Get("Content-Type")
+
+		fileURL, err := r2.UploadToR2(fileContent, "products", filename, contentType)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to upload file to Cloudinary: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to upload file to R2: " + err.Error()})
 			return
 		}
 
@@ -245,11 +248,16 @@ func UpdateProduct(c *gin.Context) {
 				}
 				defer fileContent.Close()
 
-				publicID := fmt.Sprintf("product_update_%d", time.Now().UnixNano())
-				fileURL, err := cloudinary.UploadToCloudinary(fileContent, "products", publicID)
+				extension := filepath.Ext(file.Filename)
+                filename := fmt.Sprintf("product_update_%d%s", time.Now().UnixNano(), extension)
+                contentType := file.Header.Get("Content-Type")
+                
+				fileURL, err := r2.UploadToR2(fileContent, "products", filename, contentType)
 				if err != nil {
-                    return
+                    c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to upload file to R2"})
+					return
 				}
+
 				newImageURLs = append(newImageURLs, fileURL)
 			}
             

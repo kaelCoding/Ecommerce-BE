@@ -79,7 +79,6 @@ func SetupRouter(hub *chat.Hub) *gin.Engine {
 			protected.GET("/ws", handlers.ChatEndpoint(hub, db))
             protected.GET("/chat/history", handlers.GetChatHistory(db))
 			protected.GET("/admin-info", handlers.GetAdminInfo(db))
-			protected.POST("/fcm/token", handlers.UpdateFCMToken(db)) 
 		}
 
 		admin := api.Group("/admin")

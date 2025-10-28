@@ -9,7 +9,7 @@ import (
 	"github.com/kaelCoding/toyBE/internal/database"
 	"github.com/kaelCoding/toyBE/internal/models"
 	"github.com/kaelCoding/toyBE/internal/router"
-	"github.com/kaelCoding/toyBE/internal/pkg/cloudinary"
+	"github.com/kaelCoding/toyBE/internal/pkg/r2"
 	"github.com/kaelCoding/toyBE/internal/chat"
 	"github.com/kaelCoding/toyBE/internal/loyalty"
     "github.com/robfig/cron/v3"
@@ -21,7 +21,7 @@ func main() {
 		log.Printf("Cảnh báo: Không tìm thấy file .env, sẽ sử dụng biến môi trường hệ thống. Lỗi: %v\n", err)
 	}
 
-	cloudinary.Init()
+	r2.Init()
 	database.ConnectDB()
 	db := database.GetDB()
 
