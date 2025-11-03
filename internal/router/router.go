@@ -54,6 +54,12 @@ func SetupRouter(hub *chat.Hub) *gin.Engine {
 			auth.POST("/login", handlers.LoginUser(db))
 		}
 
+		proxyGroup := api.Group("/proxy")
+		{
+			proxyGroup.POST("/fetch", handlers.FetchMercariData)
+            proxyGroup.POST("/search", handlers.SearchMercariData)
+		}
+
 		api.GET("/products", handlers.GetProducts)
 		api.GET("/products/ids", handlers.GetAllProductIDs)
 		api.GET("/products/:id", handlers.GetProductByID)
@@ -75,7 +81,13 @@ func SetupRouter(hub *chat.Hub) *gin.Engine {
 		protected.Use(handlers.AuthMiddleware())
 		{
 			protected.GET("/profile", handlers.GetUser(db))
-			protected.POST("/orders", handlers.CreateOrderHandler)
+			// protected.POST("/orders", handlers.CreateOrderHandler)
+			protected.POST("/proxy/order", handlers.CreateProxyOrder(db)) 
+			protected.POST("/cart/checkout", handlers.CreateOrderFromCart)
+			protected.GET("/cart", handlers.GetCart(db))
+            protected.POST("/cart", handlers.AddToCart(db))
+            protected.PUT("/cart/items/:id", handlers.UpdateCartItemQuantity(db))
+            protected.DELETE("/cart/items/:id", handlers.DeleteCartItem(db))
 			protected.GET("/ws", handlers.ChatEndpoint(hub, db))
             protected.GET("/chat/history", handlers.GetChatHistory(db))
 			protected.GET("/admin-info", handlers.GetAdminInfo(db))

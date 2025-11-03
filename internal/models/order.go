@@ -4,16 +4,6 @@ import (
 	"gorm.io/gorm"
 )
 
-type OrderRequest struct {
-	ProductID       uint   `json:"productId" binding:"required"`
-	Quantity        int    `json:"quantity" binding:"required"`
-	CustomerName    string `json:"customerName" binding:"required"`
-	CustomerPhone   string `json:"customerPhone" binding:"required"`
-	CustomerAddress string `json:"customerAddress" binding:"required"`
-	CustomerEmail   string `json:"customerEmail" binding:"required"`
-	PaymentMethod   string `json:"paymentMethod" binding:"required"`
-}
-
 type Order struct {
 	gorm.Model
 	UserID          uint        `json:"userId"`
@@ -28,8 +18,8 @@ type Order struct {
 	CustomerEmail   string      `json:"customerEmail"`
 	PaymentMethod   string      `json:"paymentMethod"`
 	OrderItems      []OrderItem `gorm:"foreignKey:OrderID" json:"orderItems"`
-	ShippingCode 	string 		`gorm:"unique;index" json:"shippingCode"`
-	HasSpun      	bool   		`gorm:"default:false" json:"hasSpun"`
+	ShippingCode    string      `gorm:"unique;index" json:"shippingCode"`
+	HasSpun         bool        `gorm:"default:false" json:"hasSpun"`
 }
 
 type OrderItem struct {

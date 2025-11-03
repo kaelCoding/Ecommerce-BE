@@ -1,14 +1,15 @@
 package handlers
 
 import (
-    "net/http"
-    "strconv"
-    "gorm.io/gorm"
-    "strings"
+	"errors" // THÊM IMPORT
+	"net/http"
+	"strconv"
+	"strings"
 
-    "github.com/gin-gonic/gin"
-	"github.com/kaelCoding/toyBE/internal/models"
+	"github.com/gin-gonic/gin"
 	"github.com/kaelCoding/toyBE/internal/database"
+	"github.com/kaelCoding/toyBE/internal/models"
+	"gorm.io/gorm"
 )
 
 func AddCategory(c *gin.Context) {
@@ -28,7 +29,8 @@ func AddCategory(c *gin.Context) {
 
 func GetCategory(c *gin.Context) {
     var category []models.Category
-    if err := database.DB.Order("id ASC").Find(&category).Error; err != nil {
+    // THAY ĐỔI: Tải kèm (Preload) danh sách sản phẩm
+    if err := database.DB.Preload("Products").Order("id ASC").Find(&category).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve category"})
         return
     }
@@ -44,8 +46,13 @@ func GetCategoryByID(c *gin.Context) {
     }
 
     var category models.Category
-    if err := database.DB.First(&category, id).Error; err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "Category not found"})
+    // THAY ĐỔI: Tải kèm (Preload) danh sách sản phẩm
+    if err := database.DB.Preload("Products").First(&category, id).Error; err != nil {
+        if errors.Is(err, gorm.ErrRecordNotFound) { // Sửa: gorm.ErrRecordNotFound
+            c.JSON(http.StatusNotFound, gin.H{"error": "Category not found"})
+            return
+        }
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
         return
     }
 
@@ -61,7 +68,11 @@ func UpdateCategory(c *gin.Context) {
 
     var category models.Category
     if err := database.DB.First(&category, id).Error; err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "Category not found"})
+        if errors.Is(err, gorm.ErrRecordNotFound) { // Sửa: gorm.ErrRecordNotFound
+             c.JSON(http.StatusNotFound, gin.H{"error": "Category not found"})
+             return
+        }
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
         return
     }
 
@@ -89,8 +100,36 @@ func DeleteCategory(c *gin.Context) {
         return
     }
     
-    if err := database.DB.Unscoped().Delete(&models.Category{}, id).Error; err != nil {
+    db := database.GetDB()
+    tx := db.Begin()
+
+    var category models.Category
+    if err := tx.First(&category, id).Error; err != nil {
+        tx.Rollback()
+        if errors.Is(err, gorm.ErrRecordNotFound) {
+             c.JSON(http.StatusNotFound, gin.H{"error": "Category not found"})
+             return
+        }
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+        return
+    }
+
+    // THAY ĐỔI: Xóa các liên kết trong bảng product_categories trước
+    if err := tx.Model(&category).Association("Products").Clear(); err != nil {
+        tx.Rollback()
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear category associations"})
+        return
+    }
+
+    // Xóa vĩnh viễn (Unscoped) danh mục
+    if err := tx.Unscoped().Delete(&category).Error; err != nil {
+        tx.Rollback()
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete category"})
+        return
+    }
+
+    if err := tx.Commit().Error; err != nil {
+         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
         return
     }
 

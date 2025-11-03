@@ -1,18 +1,18 @@
 package handlers
 
 import (
-    "log"
-    "net/http"
-    "strconv"
+	"log"
+	"net/http"
+	"strconv"
 	"gorm.io/gorm"
-    "math/rand"
-    "time"
+	"math/rand"
+	"time"
 
-    "github.com/gin-gonic/gin"
-    "github.com/kaelCoding/toyBE/internal/database"
-    "github.com/kaelCoding/toyBE/internal/loyalty"
-    "github.com/kaelCoding/toyBE/internal/models"
-    "github.com/kaelCoding/toyBE/internal/services"
+	"github.com/gin-gonic/gin"
+	"github.com/kaelCoding/toyBE/internal/database"
+	"github.com/kaelCoding/toyBE/internal/loyalty"
+	"github.com/kaelCoding/toyBE/internal/models"
+	"github.com/kaelCoding/toyBE/internal/services"
 )
 
 func generateShippingCode() string {
@@ -25,8 +25,19 @@ func generateShippingCode() string {
 	return string(b)
 }
 
-func CreateOrderHandler(c *gin.Context) {
-	var req models.OrderRequest
+func GetAllOrders(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var orders []models.Order
+		if err := db.Preload("User").Order("created_at desc").Find(&orders).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve orders"})
+			return
+		}
+		c.JSON(http.StatusOK, orders)
+	}
+}
+
+func CreateOrderFromCart(c *gin.Context) {
+	var req models.CartCheckoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data: " + err.Error()})
 		return
@@ -44,6 +55,17 @@ func CreateOrderHandler(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
+	
+	var cart models.Cart
+	if err := db.Where("user_id = ?", userID).Preload("CartItems.Product").First(&cart).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Cart not found"})
+		return
+	}
+
+	if len(cart.CartItems) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cart is empty"})
+		return
+	}
 
 	tx := db.Begin()
 	defer func() {
@@ -54,22 +76,19 @@ func CreateOrderHandler(c *gin.Context) {
 		}
 	}()
 
-	var product models.Product
-	if err := tx.First(&product, req.ProductID).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusNotFound, gin.H{"error": "Product with ID " + strconv.Itoa(int(req.ProductID)) + " not found"})
-		return
-	}
+	var orderItems []models.OrderItem
+	var originalAmount float64 = 0
 
-	price, _ := strconv.ParseFloat(product.Price, 64)
-	originalAmount := price * float64(req.Quantity)
-
-	orderItems := []models.OrderItem{
-		{
-			ProductID: req.ProductID,
-			Quantity:  req.Quantity,
+	for _, item := range cart.CartItems {
+		price, _ := strconv.ParseFloat(item.Product.Price, 64)
+		itemTotal := price * float64(item.Quantity)
+		originalAmount += itemTotal
+		
+		orderItems = append(orderItems, models.OrderItem{
+			ProductID: item.ProductID,
+			Quantity:  item.Quantity,
 			Price:     price,
-		},
+		})
 	}
 
 	vipInfo := loyalty.GetVIPLevelInfo(user.VIPLevel)
@@ -83,11 +102,11 @@ func CreateOrderHandler(c *gin.Context) {
 		OriginalAmount:  originalAmount,
 		DiscountApplied: discountAmount,
 		TotalAmount:     finalAmount,
-		Status:          "completed",
-		CustomerName:    req.CustomerName,
+		Status:          "completed", 
+		CustomerName:    req.CustomerName, 
 		CustomerPhone:   req.CustomerPhone,
 		CustomerAddress: req.CustomerAddress,
-		CustomerEmail:   req.CustomerEmail,
+		CustomerEmail:   user.Email, 
 		PaymentMethod:   req.PaymentMethod,
 		OrderItems:      orderItems,
 		ShippingCode:    shippingCode,
@@ -95,7 +114,7 @@ func CreateOrderHandler(c *gin.Context) {
 
 	if err := tx.Create(&order).Error; err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create order: " + err.Error()}) // Thêm err.Error() để log lỗi chi tiết hơn
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create order: " + err.Error()})
 		return
 	}
 
@@ -106,6 +125,12 @@ func CreateOrderHandler(c *gin.Context) {
 		return
 	}
 
+	if err := tx.Where("cart_id = ?", cart.ID).Delete(&models.CartItem{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear cart"})
+		return
+	}
+	
 	if err := tx.Commit().Error; err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
@@ -118,11 +143,10 @@ func CreateOrderHandler(c *gin.Context) {
 			log.Printf("Error fetching full order details for email (OrderID: %d): %v", order.ID, err)
 			return
 		}
-
+		
 		if err := services.SendOrderConfirmationEmail(fullOrder); err != nil {
 			log.Printf("Failed to send order confirmation email to admin (OrderID: %d): %v", fullOrder.ID, err)
 		}
-
 		if fullOrder.CustomerEmail != "" {
 			if err := services.SendInvoiceToCustomer(fullOrder, fullOrder.CustomerEmail); err != nil {
 				log.Printf("Failed to send invoice email to customer (OrderID: %d): %v", fullOrder.ID, err)
@@ -131,18 +155,7 @@ func CreateOrderHandler(c *gin.Context) {
 	}()
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Order created successfully. Confirmation emails are being sent.",
+		"message": "Order created successfully from cart. Confirmation emails are being sent.",
 		"order":   order,
 	})
-}
-
-func GetAllOrders(db *gorm.DB) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var orders []models.Order
-		if err := db.Preload("User").Order("created_at desc").Find(&orders).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve orders"})
-			return
-		}
-		c.JSON(http.StatusOK, orders)
-	}
 }

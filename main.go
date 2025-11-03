@@ -27,7 +27,7 @@ func main() {
 
 	fmt.Println("Migrating database schemas...")
 
-	err = database.DB.AutoMigrate(&models.User{}, &models.Product{}, &models.Category{}, &models.Message{}, &models.Order{}, &models.OrderItem{}, &models.Reward{}, &models.SpinLog{})
+	err = database.DB.AutoMigrate(&models.User{}, &models.Product{}, &models.Category{}, &models.Message{}, &models.Order{}, &models.OrderItem{}, &models.Reward{}, &models.SpinLog{}, &models.ProxyOrder{}, &models.Cart{}, &models.CartItem{})
 	if err != nil {
 		log.Fatal("Error migrating schema:", err)
 	}

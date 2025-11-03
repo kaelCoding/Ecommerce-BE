@@ -1,23 +1,25 @@
 package handlers
 
 import (
-    "net/http"
-    "strconv"
-    "errors"
-    "gorm.io/gorm"
-    "fmt"
-    "time"
-    "encoding/json"
-    "path/filepath"
-    
-    "github.com/gin-gonic/gin"
-	"github.com/kaelCoding/toyBE/internal/models"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"path/filepath"
+	"strconv"
+	"time"
+
+	"github.com/gin-gonic/gin"
 	"github.com/kaelCoding/toyBE/internal/database"
-    "github.com/kaelCoding/toyBE/internal/pkg/r2"
+	"github.com/kaelCoding/toyBE/internal/models"
+	"github.com/kaelCoding/toyBE/internal/pkg/r2"
+	"gorm.io/gorm"
 )
 
+// THAY ĐỔI: Helper này giờ preload "Categories" (số nhiều)
 func createProductResponse(db *gorm.DB, product *models.Product) (map[string]interface{}, error) {
-    if err := db.Preload("Category").First(&product, product.ID).Error; err != nil {
+    // Tải lại sản phẩm với danh sách Categories
+    if err := db.Preload("Categories").First(&product, product.ID).Error; err != nil {
         return nil, err
     }
 
@@ -31,8 +33,7 @@ func createProductResponse(db *gorm.DB, product *models.Product) (map[string]int
         "name":          product.Name,
         "description":   product.Description,
         "price":         product.Price,
-        "category_id":   product.CategoryID,
-        "category_name": product.Category.Name, 
+        "categories":    product.Categories, // Trả về mảng categories
         "image_urls":    imageURLs,         
         "CreatedAt":     product.CreatedAt,
         "UpdatedAt":     product.UpdatedAt,
@@ -53,13 +54,16 @@ func AddProduct(c *gin.Context) {
     name := c.PostForm("name")
     description := c.PostForm("description")
     price := c.PostForm("price")
-    categoryID := c.PostForm("category_id")
+    
+    // THAY ĐỔI: Nhận một mảng category IDs
+    categoryIDsStr := c.PostFormArray("category_ids")
 
-    if name == "" || price == "" || categoryID == "" {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Name, price, and category_id are required fields"})
+    if name == "" || price == "" || len(categoryIDsStr) == 0 {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Name, price, and at least one category_id are required fields"})
         return
     }
 
+    // ... (logic xử lý file ảnh giữ nguyên) ...
     form, err := c.MultipartForm()
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": "Error getting multipart form: " + err.Error()})
@@ -70,26 +74,24 @@ func AddProduct(c *gin.Context) {
     imageURLs := []string{}
 
     for _, file := range files {
-		fileContent, err := file.Open()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to open uploaded file"})
-			return
-		}
-		defer fileContent.Close()
+        fileContent, err := file.Open()
+        if err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to open uploaded file"})
+            return
+        }
+        defer fileContent.Close()
 
-		extension := filepath.Ext(file.Filename)
-		filename := fmt.Sprintf("product_%d%s", time.Now().UnixNano(), extension)
-
+        extension := filepath.Ext(file.Filename)
+        filename := fmt.Sprintf("product_%d%s", time.Now().UnixNano(), extension)
         contentType := file.Header.Get("Content-Type")
 
-		fileURL, err := r2.UploadToR2(fileContent, "products", filename, contentType)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to upload file to R2: " + err.Error()})
-			return
-		}
-
-		imageURLs = append(imageURLs, fileURL)
-	}
+        fileURL, err := r2.UploadToR2(fileContent, "products", filename, contentType)
+        if err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to upload file to R2: " + err.Error()})
+            return
+        }
+        imageURLs = append(imageURLs, fileURL)
+    }
 
     imageURLsJSON, err := json.Marshal(imageURLs)
     if err != nil {
@@ -97,32 +99,46 @@ func AddProduct(c *gin.Context) {
         return
     }
     
-    var catID uint
-    fmt.Sscanf(categoryID, "%d", &catID)
+    // THAY ĐỔI: Chuyển đổi mảng string IDs sang mảng uint
+    var categoryIDs []uint
+    for _, idStr := range categoryIDsStr {
+        id, err := strconv.ParseUint(idStr, 10, 32)
+        if err == nil {
+            categoryIDs = append(categoryIDs, uint(id))
+        }
+    }
+
+    // Tìm các đối tượng Category
+    var categories []models.Category
+    if err := db.Find(&categories, categoryIDs).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find categories: " + err.Error()})
+        return
+    }
+    if len(categories) != len(categoryIDs) {
+        c.JSON(http.StatusNotFound, gin.H{"error": "One or more categories not found"})
+        return
+    }
     
+    // Tạo sản phẩm (chưa có category)
     product := models.Product{
         Name:        name,
         Description: description,
         Price:       price,
-        CategoryID:  catID,
         ImageURLs:   imageURLsJSON,
-    }
-
-    var category models.Category
-    if err := db.First(&category, product.CategoryID).Error; err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            c.JSON(http.StatusNotFound, gin.H{"error": "Category not found"})
-            return
-        }
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
     }
 
     if err := db.Create(&product).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product: " + err.Error()})
         return
     }
+
+    // Gán categories cho sản phẩm
+    if err := db.Model(&product).Association("Categories").Append(&categories); err != nil {
+         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to associate categories: " + err.Error()})
+        return
+    }
     
+    // Trả về response (đã được cập nhật để preload "Categories")
     response, err := createProductResponse(db, &product)
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch product details: " + err.Error()})
@@ -137,16 +153,13 @@ func GetProducts(c *gin.Context) {
     db := database.GetDB()
     var products []models.Product
 
-    if err := db.Preload("Category").Order("created_at DESC").Find(&products).Error; err != nil {
+    // THAY ĐỔI: Preload "Categories" (số nhiều)
+    if err := db.Preload("Categories").Order("created_at DESC").Find(&products).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         return
     }
 
-    for i := range products {
-        if products[i].Category.ID != 0 {
-            products[i].CategoryName = products[i].Category.Name
-        }
-    }
+    // Bỏ vòng lặp gán CategoryName
 
     c.JSON(http.StatusOK, products)
 }
@@ -162,7 +175,8 @@ func GetProductByID(c *gin.Context) {
     db := database.GetDB()
     var product models.Product
 
-    if err := db.Preload("Category").First(&product, id).Error; err != nil {
+    // THAY ĐỔI: Preload "Categories" (số nhiều)
+    if err := db.Preload("Categories").First(&product, id).Error; err != nil {
         if errors.Is(err, gorm.ErrRecordNotFound) {
             c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
             return
@@ -171,9 +185,7 @@ func GetProductByID(c *gin.Context) {
         return
     }
 
-    if product.Category.ID != 0 {
-        product.CategoryName = product.Category.Name
-    }
+    // Bỏ gán CategoryName
 
     c.JSON(http.StatusOK, product)
 }
@@ -195,7 +207,15 @@ func GetProductsByCategoryIDWithLimit(c *gin.Context) {
     }
 
     var products []models.Product
-    if err := db.Where("category_id = ?", id).Limit(limit).Order("created_at DESC").Preload("Category").Find(&products).Error; err != nil {
+    // THAY ĐỔI: Truy vấn qua bảng trung gian
+    err = db.Preload("Categories").
+        Joins("JOIN product_categories ON product_categories.product_id = products.id").
+        Where("product_categories.category_id = ?", id).
+        Order("products.created_at DESC").
+        Limit(limit).
+        Find(&products).Error
+
+    if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve products"})
         return
     }
@@ -232,9 +252,26 @@ func UpdateProduct(c *gin.Context) {
     existingProduct.Description = c.PostForm("description")
     existingProduct.Price = c.PostForm("price")
 
-    catID, _ := strconv.Atoi(c.PostForm("category_id"))
-    existingProduct.CategoryID = uint(catID)
+    // THAY ĐỔI: Nhận mảng category IDs
+    categoryIDsStr := c.PostFormArray("category_ids")
+    var categoryIDs []uint
+    for _, idStr := range categoryIDsStr {
+        id, err := strconv.ParseUint(idStr, 10, 32)
+        if err == nil {
+            categoryIDs = append(categoryIDs, uint(id))
+        }
+    }
 
+    // Tìm các đối tượng Category mới
+    var categories []models.Category
+    if len(categoryIDs) > 0 {
+        if err := db.Find(&categories, categoryIDs).Error; err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find categories: " + err.Error()})
+            return
+        }
+    }
+    
+    // ... (logic xử lý file ảnh giữ nguyên) ...
     form, err := c.MultipartForm()
     if err == nil {
         files := form.File["images"]
@@ -242,32 +279,38 @@ func UpdateProduct(c *gin.Context) {
             var newImageURLs []string
             
             for _, file := range files {
-				fileContent, err := file.Open()
-				if err != nil {
-			        return
-				}
-				defer fileContent.Close()
+                fileContent, err := file.Open()
+                if err != nil {
+                    return
+                }
+                defer fileContent.Close()
 
-				extension := filepath.Ext(file.Filename)
+                extension := filepath.Ext(file.Filename)
                 filename := fmt.Sprintf("product_update_%d%s", time.Now().UnixNano(), extension)
                 contentType := file.Header.Get("Content-Type")
                 
-				fileURL, err := r2.UploadToR2(fileContent, "products", filename, contentType)
-				if err != nil {
+                fileURL, err := r2.UploadToR2(fileContent, "products", filename, contentType)
+                if err != nil {
                     c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to upload file to R2"})
-					return
-				}
-
-				newImageURLs = append(newImageURLs, fileURL)
-			}
+                    return
+                }
+                newImageURLs = append(newImageURLs, fileURL)
+            }
             
             imageURLsJSON, _ := json.Marshal(newImageURLs)
             existingProduct.ImageURLs = imageURLsJSON
         }
     }
 
+    // Lưu các trường product cơ bản
     if err := db.Save(&existingProduct).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update product"})
+        return
+    }
+
+    // THAY ĐỔI: Cập nhật (thay thế) các categories liên quan
+    if err := db.Model(&existingProduct).Association("Categories").Replace(&categories); err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update categories association: " + err.Error()})
         return
     }
 
@@ -281,6 +324,7 @@ func UpdateProduct(c *gin.Context) {
 }
 
 func DeleteProduct(c *gin.Context) {
+    db := database.GetDB() // Lấy DB instance
     id, err := strconv.Atoi(c.Param("id"))
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
@@ -288,8 +332,34 @@ func DeleteProduct(c *gin.Context) {
     }
 
     var product models.Product
-    if err := database.DB.Delete(&product, id).Error; err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
+    // THAY ĐỔI: Sử dụng transaction để xóa product và các liên kết
+    tx := db.Begin()
+    if err := tx.First(&product, id).Error; err != nil {
+        tx.Rollback()
+        if errors.Is(err, gorm.ErrRecordNotFound) {
+             c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
+             return
+        }
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+        return
+    }
+
+    // Xóa các liên kết trong bảng product_categories
+    if err := tx.Model(&product).Association("Categories").Clear(); err != nil {
+        tx.Rollback()
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear product associations"})
+        return
+    }
+
+    // Xóa sản phẩm
+    if err := tx.Delete(&product).Error; err != nil {
+        tx.Rollback()
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete product"})
+        return
+    }
+
+    if err := tx.Commit().Error; err != nil {
+         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
         return
     }
 
@@ -309,7 +379,8 @@ func SearchProducts(c *gin.Context) {
 
     searchTerm := "%" + query + "%"
 
-    if err := db.Preload("Category").
+    // THAY ĐỔI: Preload "Categories" (số nhiều)
+    if err := db.Preload("Categories").
                   Order("created_at DESC").
                   Where("LOWER(name) LIKE LOWER(?)", searchTerm).
                   Limit(10).
@@ -318,11 +389,7 @@ func SearchProducts(c *gin.Context) {
         return
     }
     
-    for i := range products {
-        if products[i].Category.ID != 0 {
-            products[i].CategoryName = products[i].Category.Name
-        }
-    }
+    // Bỏ vòng lặp gán CategoryName
 
     c.JSON(http.StatusOK, products)
 }
@@ -337,6 +404,7 @@ func GetProductsByCategory(c *gin.Context) {
         return
     }
 
+    // Kiểm tra category tồn tại
     var category models.Category
     if err := db.First(&category, categoryID).Error; err != nil {
         if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -348,15 +416,16 @@ func GetProductsByCategory(c *gin.Context) {
     }
 
     var products []models.Product
-    if err := db.Preload("Category").Where("category_id = ?", categoryID).Order("created_at DESC").Find(&products).Error; err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
+    // THAY ĐỔI: Truy vấn qua bảng trung gian
+    err = db.Preload("Categories").
+        Joins("JOIN product_categories ON product_categories.product_id = products.id").
+        Where("product_categories.category_id = ?", categoryID).
+        Order("products.created_at DESC").
+        Find(&products).Error
 
-    for i := range products {
-        if products[i].Category.ID != 0 {
-            products[i].CategoryName = products[i].Category.Name
-        }
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve products by category"})
+        return
     }
 
     c.JSON(http.StatusOK, products)
